@@ -31,6 +31,7 @@ void Bird::loadGeometry(Link *arc)
 					0.0f, 0.0f, 0.0f, 1.0f);
 	arc->sibling = 0;
 	arc->nodePtr = new Node();
+	// get the pointer for processing
 	Node *B_Node  = arc->nodePtr;
 	// Load Body Node
 	std::string strPath = app::getAssetPath("meshes/Body_Bird.obj").string();
