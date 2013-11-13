@@ -33,7 +33,7 @@ void Bird::loadGeometry(Link *arc)
 	arc->nodePtr = new Node();
 	Node *B_Node  = arc->nodePtr;
 	// Load Body Node
-	std::string strPath = app::getAssetPath("OBJS/Body_Bird.obj").string();
+	std::string strPath = app::getAssetPath("meshes/Body_Bird.obj").string();
 	B_Node->shape.loadMesh( strPath.c_str(), BODY );
 	B_Node->Tmatrix = Matrix44<float>::identity();
 	B_Node->childs.push_back( new Link() );	// Left Wing
@@ -54,7 +54,7 @@ void Bird::loadGeometry(Link *arc)
 	LArc->nodePtr = new Node();
 	Node *LWNode = LArc->nodePtr;
 	// Load Left Wing Node
-	strPath = app::getAssetPath("OBJS/LeftWing_Bird.obj").string();
+	strPath = app::getAssetPath("meshes/LeftWing_Bird.obj").string();
 	LWNode->shape.loadMesh( strPath.c_str(), WING );
 	LWNode->Tmatrix = Matrix44<float>::identity();
 
@@ -71,7 +71,7 @@ void Bird::loadGeometry(Link *arc)
 	RArc->nodePtr = new Node();
 	Node *RWNode = RArc->nodePtr;
 	// Load Right Wing Node
-	strPath = app::getAssetPath("OBJS/RightWing_Bird.obj").string();
+	strPath = app::getAssetPath("meshes/RightWing_Bird.obj").string();
 	RWNode->shape.loadMesh( strPath.c_str(), WING );
 	RWNode->Tmatrix = Matrix44<float>::identity();
 }
@@ -148,6 +148,7 @@ void Bird::draw(const vector<Vec3f> &newVertices, const Mesh &shape, bool lighti
 	const vector<Vec3ui> indices = shape.getIndices();
 	const vector<Vec3f> norms = shape.getNormals();
 	if( shape.part == BODY ) {
+		glColor4f(0.72f,0.23f,0.04f,1.0f);
 		mat_diff[0] = 0.55f;
 		mat_diff[1] = 0.27f;
 		mat_diff[2] = 0.08f;

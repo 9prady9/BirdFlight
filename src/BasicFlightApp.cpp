@@ -67,7 +67,7 @@ void BasicFlightApp::prepareSettings( Settings *settings )
 	integrator = "Mr. Euler";
 	wireframe = false;
 	runSimulation = false;
-	lighting = false;
+	lighting = true;
 	frame = 58;
 }
 
@@ -96,24 +96,24 @@ void BasicFlightApp::setup()
 	glLightfv(GL_LIGHT0, GL_POSITION, mLightPos);
 
 	// Object initilization
-	boid = new Bird(Vec3f(400.0f,0.0f,0.0f),Vec3f(0.0f, 0.0f, 0.0f),&prop);	
-	terr = new Terrain(1024,1024,-100.0f,50.0f,0.3f,0.75f);
-	/*terr->prepareTerrain();
-	terr->iterateByDiamondSquare(9);
-	for(int i=0;i<9;++i) terr->applySmoothingFilter();*/
+	boid = new Bird(Vec3f(1000.0f,0.0f,0.0f),Vec3f(0.0f, 0.0f, 0.0f),&prop);
+	
+	/*terr = new Terrain(1024,1024,0.0f,100.0f,0.3f,0.75f);
+	terr->prepareTerrain();*/
+	
+	terr = new Terrain(1025,1025,0.0f,100.0f,0.3f,0.75f);
 	std::string strPath1 = app::getAssetPath("HeightMap_Projects/HeightMap_2BaseTexture.bmp").string();
 	std::string strPath2 = app::getAssetPath("HeightMap_Projects/HeightMap2.bmp").string();
 	terr->loadTerrain(strPath2.c_str(),strPath1.c_str());
-	for(int i=0;i<9;++i) terr->applySmoothingFilter();
-	terr->computeNormals();
-
+	
 	// SETUP CAMERA
 	Vec3f dir	= Vec3f(1,0,0);
-	mCenter		= boid->getCenter() + Vec3f( 0.0f, 30.0f, 0.0f );
+	mCenter		= boid->getCenter() + Vec3f( 0.0f, 40.0f, 0.0f );
 	mEye		= mCenter - 100.0f * dir;
-	mUp		= Vec3f::yAxis();
-	mCam.lookAt( mEye, mCenter, mUp );
+	mUp			= Vec3f::yAxis();
+
 	mCam.setPerspective( 60.0f, getWindowAspectRatio(), 0.1f, 2000.0f );
+	gl::setMatrices( mCam );
 }
 
 void BasicFlightApp::mouseDown( MouseEvent event )
@@ -141,6 +141,7 @@ void BasicFlightApp::keyDown( KeyEvent event )
 			glEnable(GL_LIGHT0);
 		}
 	} else if( event.getChar() == 'r' || event.getChar() == 'R' ) {
+		std::cout<<"Simulation Started"<<std::endl;
 		runSimulation = true;
 	} else if( event.getChar() == 's' || event.getChar() == 'S' ) {
 		runSimulation = false;
@@ -157,9 +158,10 @@ void BasicFlightApp::update()
 {
 	// Update Camera Setup
 	Vec3f dir	= Vec3f(1,0,0);
-	mCenter		= boid->getCenter() + Vec3f( 0.0f, 30.0f, 0.0f );
+	mCenter		= boid->getCenter() + Vec3f( 0.0f, 40.0f, 0.0f );
 	mEye		= mCenter - 100.0f * dir;
-	mUp		= Vec3f::yAxis();
+	mUp			= Vec3f::yAxis();
+
 	if(lighting) {
 		mLightPos[0] = mEye.x; mLightPos[1] = mEye.y; mLightPos[2] = mEye.z; mLightPos[3] = 0.0f;
 		glLightfv(GL_LIGHT0, GL_POSITION, mLightPos);
@@ -174,14 +176,14 @@ void BasicFlightApp::update()
 		State newState = boid->mState;
 		
 		// Print current state
-		/*
-		console()<<" Current state : "<<std::endl<<
+		
+		/*console()<<" Current state : "<<std::endl<<
 					newState.mCOM<<std::endl<<
 					newState.mR<<std::endl<<
 					newState.mP<<std::endl<<
 					newState.mL<<std::endl<<
-					"---------------------------"<<std::endl;
-		*/
+					"---------------------------"<<std::endl;*/
+		
 		Derivative accAccum;
 		boid->accelerate( accAccum );
 		/*
@@ -218,7 +220,7 @@ void BasicFlightApp::draw()
 
 	terr->renderTerrain(lighting);
 	// Draw bird	
-	boid->drawGeometry(lighting);	
+	boid->drawGeometry(lighting);
 	// Draw the interface
 	mParams->draw();
 	// Write output image	

@@ -46,7 +46,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\include;"D:\Libraries\cinder_0.8.5_vc2010\include";"D:\Libraries\cinder_0.8.5_vc2010\boost"</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\include;"F:\Libraries\cinder_0.8.5_vc2010\include";"F:\Libraries\cinder_0.8.5_vc2010\boost"</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -57,11 +57,11 @@
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <ResourceCompile>
-      <AdditionalIncludeDirectories>"D:\Libraries\cinder_0.8.5_vc2010\include";..\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>"F:\Libraries\cinder_0.8.5_vc2010\include";..\include</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Link>
       <AdditionalDependencies>cinder_d.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>"D:\Libraries\cinder_0.8.5_vc2010\lib";"D:\Libraries\cinder_0.8.5_vc2010\lib\msw"</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>"F:\Libraries\cinder_0.8.5_vc2010\lib";"F:\Libraries\cinder_0.8.5_vc2010\lib\msw"</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <RandomizedBaseAddress>false</RandomizedBaseAddress>
@@ -72,7 +72,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>..\include;"D:\Libraries\cinder_0.8.5_vc2010\include";"D:\Libraries\cinder_0.8.5_vc2010\boost"</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\include;"F:\Libraries\cinder_0.8.5_vc2010\include";"F:\Libraries\cinder_0.8.5_vc2010\boost"</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <PrecompiledHeader />
@@ -84,11 +84,11 @@
       <LinkLibraryDependencies>true</LinkLibraryDependencies>
     </ProjectReference>
     <ResourceCompile>
-      <AdditionalIncludeDirectories>"D:\Libraries\cinder_0.8.5_vc2010\include";..\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>"F:\Libraries\cinder_0.8.5_vc2010\include";..\include</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Link>
       <AdditionalDependencies>cinder.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>"D:\Libraries\cinder_0.8.5_vc2010\lib";"D:\Libraries\cinder_0.8.5_vc2010\lib\msw"</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>"F:\Libraries\cinder_0.8.5_vc2010\lib";"F:\Libraries\cinder_0.8.5_vc2010\lib\msw"</AdditionalLibraryDirectories>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <GenerateMapFile>true</GenerateMapFile>
       <SubSystem>Windows</SubSystem>

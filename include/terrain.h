@@ -24,8 +24,6 @@ public:
 	Terrain( int zDim, int xDim, float minHeight, float maxHeight, float roughness, float smoothy);
 	void loadTerrain(const char *heightmap,const char* colormap);	// prepare the terrain using image
 	void prepareTerrain();											// prepare init data for creating a terrain
-	void iterateByDiamondSquare(int how_many_iterations=9);			// call this method if prepareTerrain was used to initialize terrain
-	void applySmoothingFilter();
 	void computeNormals();											// call this function before rendering Terrain if lighting is enabled
 	void renderTerrain(bool lighting);								// render based on lighting requirement
 private:
@@ -34,6 +32,8 @@ private:
 		return (BROWN*frc + GREEN*(1-frc));
 	}
 	void DiaSqrHelper(int x1_idx, int x2_idx, int z1_idx, int z2_idx, int iteration, int Threshold);
+	void iterateByDiamondSquare(int how_many_iterations=9);			// call this method if prepareTerrain was used to initialize terrain
+	void applySmoothingFilter();
 
 	int len,wid;
 	float minH,maxH;
