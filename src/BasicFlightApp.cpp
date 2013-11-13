@@ -69,7 +69,6 @@ void BasicFlightApp::prepareSettings( Settings *settings )
 	wireframe = false;
 	runSimulation = false;
 	lighting = true;
-	isSetupDone = false;
 	frame = 58;
 }
 
@@ -116,7 +115,6 @@ void BasicFlightApp::setup()
 
 	mCam.setPerspective( 60.0f, getWindowAspectRatio(), 0.1f, 2000.0f );
 	gl::setMatrices( mCam );
-	isSetupDone = false;
 }
 
 void BasicFlightApp::mouseDown( MouseEvent event )
@@ -159,85 +157,79 @@ void BasicFlightApp::keyDown( KeyEvent event )
 
 void BasicFlightApp::update()
 {
-	if(isSetupDone)
-	{
-		// Update Camera Setup
-		Vec3f dir	= Vec3f(1,0,0);
-		mCenter		= boid->getCenter() + Vec3f( 0.0f, 40.0f, 0.0f );
-		mEye		= mCenter - 100.0f * dir;
-		mUp			= Vec3f::yAxis();
+	// Update Camera Setup
+	Vec3f dir	= Vec3f(1,0,0);
+	mCenter		= boid->getCenter() + Vec3f( 0.0f, 40.0f, 0.0f );
+	mEye		= mCenter - 100.0f * dir;
+	mUp			= Vec3f::yAxis();
 
-		if(lighting) {
-			mLightPos[0] = mEye.x; mLightPos[1] = mEye.y; mLightPos[2] = mEye.z; mLightPos[3] = 0.0f;
-			glLightfv(GL_LIGHT0, GL_POSITION, mLightPos);
-		}	
-		mCam.lookAt( mEye, mCenter, mUp );
-		mCam.setPerspective( 60.0f, getWindowAspectRatio(), 0.1f, 2000.0f );
-		gl::setMatrices( mCam );
+	if(lighting) {
+		mLightPos[0] = mEye.x; mLightPos[1] = mEye.y; mLightPos[2] = mEye.z; mLightPos[3] = 0.0f;
+		glLightfv(GL_LIGHT0, GL_POSITION, mLightPos);
+	}	
+	mCam.lookAt( mEye, mCenter, mUp );
+	mCam.setPerspective( 60.0f, getWindowAspectRatio(), 0.1f, 2000.0f );
+	gl::setMatrices( mCam );
 
-		// Run updates
-		if(runSimulation)
-		{		
-			State newState = boid->mState;
+	// Run updates
+	if(runSimulation)
+	{		
+		State newState = boid->mState;
 
-			// Print current state
+		// Print current state
 
-			/*console()<<" Current state : "<<std::endl<<
-			newState.mCOM<<std::endl<<
-			newState.mR<<std::endl<<
-			newState.mP<<std::endl<<
-			newState.mL<<std::endl<<
-			"---------------------------"<<std::endl;*/
+		/*console()<<" Current state : "<<std::endl<<
+		newState.mCOM<<std::endl<<
+		newState.mR<<std::endl<<
+		newState.mP<<std::endl<<
+		newState.mL<<std::endl<<
+		"---------------------------"<<std::endl;*/
 
-			Derivative accAccum;
-			boid->accelerate( accAccum );
-			/*
-			console()<<" Derivate state : "<<std::endl<<
-			accAccum.V<<std::endl<<
-			accAccum.dOmegaR<<std::endl<<
-			accAccum.force<<std::endl<<
-			accAccum.torque<<std::endl<<
-			"---------------------------"<<std::endl;
-			*/
-			prop.integrate( boid, newState, prop.dT, accAccum );
+		Derivative accAccum;
+		boid->accelerate( accAccum );
+		/*
+		console()<<" Derivate state : "<<std::endl<<
+		accAccum.V<<std::endl<<
+		accAccum.dOmegaR<<std::endl<<
+		accAccum.force<<std::endl<<
+		accAccum.torque<<std::endl<<
+		"---------------------------"<<std::endl;
+		*/
+		prop.integrate( boid, newState, prop.dT, accAccum );
 
-			// Print new state
-			/*
-			console()<<" New state : "<<std::endl<<
-			newState.mCOM<<std::endl<<
-			newState.mR<<std::endl<<
-			newState.mP<<std::endl<<
-			newState.mL<<std::endl<<
-			"---------------------------"<<std::endl;
-			*/
-			boid->updateState(newState);
-			boid->gnrt_Swing_AOA();
-			time += prop.dT;
-			//console()<<"--------------------------------------One time step done--------------------------------------"<<std::endl;
-		}
+		// Print new state
+		/*
+		console()<<" New state : "<<std::endl<<
+		newState.mCOM<<std::endl<<
+		newState.mR<<std::endl<<
+		newState.mP<<std::endl<<
+		newState.mL<<std::endl<<
+		"---------------------------"<<std::endl;
+		*/
+		boid->updateState(newState);
+		boid->gnrt_Swing_AOA();
+		time += prop.dT;
+		//console()<<"--------------------------------------One time step done--------------------------------------"<<std::endl;
 	}
 }
 
 void BasicFlightApp::draw()
 {
-	if(isSetupDone)
-	{
-		// clear out the window with black
-		gl::clear( Color( 0, 0, 0 ) ); 
-		glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+	// clear out the window with black
+	gl::clear( Color( 0, 0, 0 ) ); 
+	glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
-		terr->renderTerrain(lighting);
-		// Draw bird	
-		boid->drawGeometry(lighting);
-		// Draw the interface
-		mParams->draw();
-		// Write output image	
-		/*if(runSimulation) {
-		stringstream out;
-		out<<frame++<<".png";
-		writeImage(out.str(),copyWindowSurface());
-		}*/
-	}
+	terr->renderTerrain(lighting);
+	// Draw bird	
+	boid->drawGeometry(lighting);
+	// Draw the interface
+	mParams->draw();
+	// Write output image	
+	/*if(runSimulation) {
+	stringstream out;
+	out<<frame++<<".png";
+	writeImage(out.str(),copyWindowSurface());
+	}*/
 }
 
 CINDER_APP_BASIC( BasicFlightApp, RendererGl )
