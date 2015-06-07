@@ -15,3 +15,5 @@ Once the application started:
 * Hit `s` to stop the simulation.
 * Hit `k` to change simulation integrator to RK4.
 * Hit `e` to change simulation integrator to Euler.
+* Hit `l` to toggle light source based shading.
+* Hit `m' to toggle through 6 different height maps for terrain.

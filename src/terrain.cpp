@@ -161,7 +161,7 @@ void Terrain::prepareTerrain(const char *heightmap, const char* colormap)
 		}
 	}
 	/* smooth the generated terrain */
-	for(int i=0;i<7;++i)
+	for(int i=0;i<9;++i)
         applySmoothingFilter();
 	computeNormals();
 }
