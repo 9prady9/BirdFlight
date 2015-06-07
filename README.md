@@ -8,3 +8,10 @@ with close real wing flap and other effects like banking etc.
 
 Sample screen shot of the application.
 <img src="https://github.com/9prady9/BirdFlight/blob/master/BirdFlightReadMeImage.png" width="512"/>
+
+#### App usage instructions
+Once the application started:
+* Hit `r` to start the simulation.
+* Hit `s` to stop the simulation.
+* Hit `k` to change simulation integrator to RK4.
+* Hit `e` to change simulation integrator to Euler.
