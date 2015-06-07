@@ -17,59 +17,75 @@ using namespace ci::app;
 using namespace std;
 
 class BasicFlightApp : public AppBasic {
+private:
+    /* UI Parameters */
+    params::InterfaceGlRef	mParams;
+    bool wireframe;
+    bool lighting;
+    bool runSimulation;
+    bool isSetupDone;
+    std::string integrator;
+
+    /* Simulation tracking parameters*/
+    Vec3f gNorm;
+    int frame;
+
+    /* Camera Parameters */
+    CameraPersp	    mCam;
+    Vec3f		    mEye, mCenter, mUp;
+    float		    mCameraDistance;
+
+    /* Scene objects & time properties */
+    GLfloat		        mLightPos[4];
+    Scene_Properties	mProp;
+    GLfloat				time;
+    Bird*				boid;
+    Terrain*			terr;
+
 public:
-	void prepareSettings( Settings *settings );
-	void loadTextures();
-	void setup();
-	void mouseDown( MouseEvent event );	
-	void keyDown( KeyEvent event );
+    /* Below function overrides base class function 
+    and it is used to setup the application*/
+    void prepareSettings(Settings *settings);
+
+    /* Below function overrides base class function
+    and it is used to initialize OpenGL state*/
+    void setup();
+
+    /* UI Event handlers */
+	void mouseDown(MouseEvent event);
+	void keyDown(KeyEvent event);
+
+    /* Below function overrides base class function
+    and it is used to update the state variables
+    of the simulation in progress */
 	void update();
+
+    /* Below function overrides base class function
+    and it is where our draw calls have to be written */
 	void draw();
-
-	// PARAMS
-	params::InterfaceGlRef	mParams;
-	bool wireframe;
-	bool lighting;
-	bool runSimulation;
-	bool isSetupDone;
-	std::string integrator;
-	Vec3f gNorm;
-	int frame;
-
-	// CAMERA
-	CameraPersp			mCam;
-	Vec3f				mEye, mCenter, mUp;
-	float				mCameraDistance;
-	GLfloat				mLightPos[4];
-
-	// Scene properties
-	Scene_Properties	prop;
-	GLfloat				time;
-	Bird*				boid;
-	Terrain*			terr;
 };
 
-void BasicFlightApp::prepareSettings( Settings *settings )
+void BasicFlightApp::prepareSettings(Settings *settings)
 {
 	settings->setWindowSize( 1024, 768 );
 	settings->setFrameRate( 55.0f );
 
-	prop.gravity = 980.0f;
-	prop.g.set(0.0f,-1.0f,0.0f);
-	prop.windForce = 447.0f;
-	prop.wind = Vec3f(-1.0f,0.0f,0.0f);
-	prop.rho = 1.229 * 1.0e-6;
-	prop.g *= prop.gravity;
-	prop.dT = 0.001f;
-	gNorm = prop.g.normalized();
-	prop.integrate = integrateByEulerMethod;
-	prop.level = 5.0f;
+	mProp.gravity    = 980.0f;
+	mProp.g.set(0.0f,-1.0f,0.0f);
+	mProp.windForce  = 447.0f;
+	mProp.wind       = Vec3f(-1.0f,0.0f,0.0f);
+	mProp.rho        = 1.229f * 1.0e-6f;
+	mProp.g          *= mProp.gravity;
+	mProp.dT         = 0.001f;
+	gNorm           = mProp.g.normalized();
+	mProp.integrate  = integrateByEulerMethod;
+	mProp.level      = 5.0f;
 
-	integrator = "Mr. Euler";
-	wireframe = false;
-	runSimulation = false;
-	lighting = true;
-	frame = 58;
+	integrator      = "Mr. Euler";
+	wireframe       = false;
+	runSimulation   = false;
+	lighting        = true;
+	frame           = 58;
 }
 
 void BasicFlightApp::setup()
@@ -97,7 +113,7 @@ void BasicFlightApp::setup()
 	glLightfv(GL_LIGHT0, GL_POSITION, mLightPos);
 
 	// Object initilization
-	boid = new Bird(Vec3f(1000.0f,0.0f,0.0f),Vec3f(0.0f, 0.0f, 0.0f),&prop);
+	boid = new Bird(Vec3f(1000.0f,0.0f,0.0f),Vec3f(0.0f, 0.0f, 0.0f),&mProp);
 
 	/*terr = new Terrain(1024,1024,0.0f,100.0f,0.3f,0.75f);
 	terr->prepareTerrain();*/
@@ -105,9 +121,9 @@ void BasicFlightApp::setup()
 	terr = new Terrain(1025,1025,0.0f,100.0f,0.3f,0.75f);
 	std::string strPath1 = app::getAssetPath("HeightMap_Projects/HeightMap_2BaseTexture.bmp").string();
 	std::string strPath2 = app::getAssetPath("HeightMap_Projects/HeightMap2.bmp").string();
-	terr->loadTerrain(strPath2.c_str(),strPath1.c_str());
+	terr->prepareTerrain(strPath2.c_str(), strPath1.c_str());
 
-	// SETUP CAMERA
+	/* Setup Camera properties */
 	Vec3f dir	= Vec3f(1,0,0);
 	mCenter		= boid->getCenter() + Vec3f( 0.0f, 40.0f, 0.0f );
 	mEye		= mCenter - 100.0f * dir;
@@ -147,17 +163,17 @@ void BasicFlightApp::keyDown( KeyEvent event )
 	} else if( event.getChar() == 's' || event.getChar() == 'S' ) {
 		runSimulation = false;
 	} else if( event.getChar() == 'e' || event.getChar() == 'E' ) {
-		prop.integrate = integrateByEulerMethod;
+		mProp.integrate = integrateByEulerMethod;
 		integrator = "Mr. Euler";
 	} else if( event.getChar() == 'k' || event.getChar() == 'K' ) {
-		prop.integrate = integrateByRungeKutta4;
+		mProp.integrate = integrateByRungeKutta4;
 		integrator = "Mr. RK4";
 	}
 }
 
 void BasicFlightApp::update()
 {
-	// Update Camera Setup
+	/* Update Camera Setup */
 	Vec3f dir	= Vec3f(1,0,0);
 	mCenter		= boid->getCenter() + Vec3f( 0.0f, 40.0f, 0.0f );
 	mEye		= mCenter - 100.0f * dir;
@@ -171,13 +187,12 @@ void BasicFlightApp::update()
 	mCam.setPerspective( 60.0f, getWindowAspectRatio(), 0.1f, 2000.0f );
 	gl::setMatrices( mCam );
 
-	// Run updates
+	/* Run updates */
 	if(runSimulation)
 	{		
-		State newState = boid->mState;
+		State newState = boid->getState();
 
 		// Print current state
-
 		/*console()<<" Current state : "<<std::endl<<
 		newState.mCOM<<std::endl<<
 		newState.mR<<std::endl<<
@@ -195,7 +210,7 @@ void BasicFlightApp::update()
 		accAccum.torque<<std::endl<<
 		"---------------------------"<<std::endl;
 		*/
-		prop.integrate( boid, newState, prop.dT, accAccum );
+		mProp.integrate( boid, newState, mProp.dT, accAccum );
 
 		// Print new state
 		/*
@@ -208,28 +223,30 @@ void BasicFlightApp::update()
 		*/
 		boid->updateState(newState);
 		boid->gnrt_Swing_AOA();
-		time += prop.dT;
-		//console()<<"--------------------------------------One time step done--------------------------------------"<<std::endl;
+		time += mProp.dT;
+		//console()<<"-------------------One time step done-------------------"<<std::endl;
 	}
 }
 
 void BasicFlightApp::draw()
 {
-	// clear out the window with black
-	gl::clear( Color( 0, 0, 0 ) ); 
-	glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+	/* clear out the window with black */
+	gl::clear(Color( 0, 0, 0 )); 
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	terr->renderTerrain(lighting);
-	// Draw bird	
+	/* Draw bird */
 	boid->drawGeometry(lighting);
-	// Draw the interface
+	/* Draw the interface */
 	mParams->draw();
-	// Write output image	
-	/*if(runSimulation) {
+	/* Write output image */
+	/*
+    if(runSimulation) {
 	stringstream out;
 	out<<frame++<<".png";
 	writeImage(out.str(),copyWindowSurface());
-	}*/
+	}
+    */
 }
 
 CINDER_APP_BASIC( BasicFlightApp, RendererGl )

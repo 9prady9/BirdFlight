@@ -8,28 +8,196 @@
 using namespace std;
 using namespace ci;
 
+void Mesh::computeFaceNormals()
+{
+    for (vector<Vec3ui>::iterator face = mFaceIndices.begin(); face != mFaceIndices.end(); ++face) {
+        Vec3ui indices = *face;
+        Vec3f norm = cross(mVertices[indices[1]] - mVertices[indices[0]], mVertices[indices[2]] - mVertices[indices[0]]);
+        norm.normalize();
+        mFaceNormals.push_back(norm);
+    }
+}
+
+ci::Matrix33f Mesh::computeAABB()
+{
+    mExtents[0].set(10000.0f, 10000.0f, 10000.0f);
+    mExtents[1].set(-10000.0f, -10000.0f, -10000.0f);
+    for (Vec3fIter it = mVertices.begin(); it != mVertices.end(); it++) {
+        Vec3f currV = *it;
+        // Min. extraction
+        mExtents[0][0] = (currV[0] < mExtents[0][0] ? currV[0] : mExtents[0][0]);
+        mExtents[0][1] = (currV[1] < mExtents[0][1] ? currV[1] : mExtents[0][1]);
+        mExtents[0][2] = (currV[2] < mExtents[0][2] ? currV[2] : mExtents[0][2]);
+        // Max. extraction
+        mExtents[1][0] = (currV[0] > mExtents[1][0] ? currV[0] : mExtents[1][0]);
+        mExtents[1][1] = (currV[1] > mExtents[1][1] ? currV[1] : mExtents[1][1]);
+        mExtents[1][2] = (currV[2] > mExtents[1][2] ? currV[2] : mExtents[1][2]);
+    }
+    mExtents[0] -= Vec3f((float)EPSILON, (float)EPSILON, (float)EPSILON);
+    mExtents[1] += Vec3f((float)EPSILON, (float)EPSILON, (float)EPSILON);
+    mCorners[0] = mExtents[0];
+    mCorners[1].set(mExtents[1][0], mExtents[0][1], mExtents[0][2]);
+    mCorners[2].set(mExtents[1][0], mExtents[1][1], mExtents[0][2]);
+    mCorners[3].set(mExtents[0][0], mExtents[1][1], mExtents[0][2]);
+    mCorners[4].set(mExtents[0][0], mExtents[1][1], mExtents[1][2]);
+    mCorners[5].set(mExtents[0][0], mExtents[0][1], mExtents[1][2]);
+    mCorners[6].set(mExtents[1][0], mExtents[0][1], mExtents[1][2]);
+    mCorners[7] = mExtents[1];
+    Vec3f X = (mCorners[1] - mCorners[0]).normalized();
+    X.normalize();
+    Vec3f Y = (mCorners[3] - mCorners[0]).normalized();
+    Y.normalize();
+    Vec3f Z = (mCorners[5] - mCorners[0]).normalized();
+    Z.normalize();
+    return Matrix33f(X, Y, Z);
+}
+
+void Mesh::generateInsiders()
+{
+    Vec3f X = mInitR.getColumn(0);
+    Vec3f Y = mInitR.getColumn(1);
+    Vec3f Z = mInitR.getColumn(2);
+    float xLen = (mCorners[1] - mCorners[0]).length();
+    float yLen = (mCorners[3] - mCorners[0]).length();
+    float zLen = (mCorners[5] - mCorners[0]).length();
+    int xGrids = (xLen / 2.0f > 1.0f ? (int)(xLen / 2.0) : 4);
+    int yGrids = (yLen / 2.0f > 1.0f ? (int)(yLen / 2.0) : 4);
+    int zGrids = (zLen / 2.0f > 1.0f ? (int)(zLen / 2.0) : 4);
+    float xStep = xLen / xGrids;
+    float yStep = yLen / yGrids;
+    float zStep = zLen / zGrids;
+
+    for (int j = 1; j <= yGrids; j++)
+    {
+        for (int k = 1; k <= zGrids; k++)
+        {
+            Vec3f src = mCorners[0] + j*yStep*Y + k*zStep*Z;
+            Ray currRay(src, X);
+            vector<float> tS = this->findIntersection(currRay);
+            for (vector<float>::iterator tf = tS.begin(); tf != tS.end(); tf = tf + 2) {
+                float mCurrentTime = *tf;
+                if (tf + 1 != tS.end()) {
+                    float tNxt = *(tf + 1);
+                    Vec3f Pt = currRay.getOrigin() + mCurrentTime * currRay.getDirection() - mCorners[0];
+                    Vec3f PtNxt = currRay.getOrigin() + tNxt * currRay.getDirection() - mCorners[0];
+                    int txInd = (int)(Pt.x / xStep);
+                    int txNxtInd = (int)(PtNxt.x / xStep);
+                    if (txInd < txNxtInd) {
+                        for (int i = txInd + 1; i <= txNxtInd; i++)
+                            mInteriorPoints.push_back(src + i*xStep*X);
+                    }
+                    else {
+                        for (int i = txNxtInd + 1; i <= txInd; i++)
+                            mInteriorPoints.push_back(src + i*xStep*X);
+                    }
+                }
+                else
+                    break;
+            }
+        }
+    }
+}
+
+ci::Vec3f Mesh::computeCOM()
+{
+    int pointCount = mVertices.size() + mInteriorPoints.size();
+    float Mi;
+    if (this->mPartType == BODY_PART::BODY) {
+        this->mPointMass = BODY_WT;
+        this->mPointMass /= (float)pointCount;
+    }
+    if (this->mPartType == BODY_PART::WING) {
+        this->mPointMass = WING_WT;
+        this->mPointMass /= (float)pointCount;
+    }
+    Matrix33f I(Matrix33f::zero());
+
+    Mi = this->mPointMass;
+    Vec3f acc(Vec3f::zero());
+    for (Vec3fIter iter = mVertices.begin(); iter != mVertices.end(); iter++)
+        acc += (Mi*(*iter));
+    for (Vec3fIter inIter = mInteriorPoints.begin(); inIter != mInteriorPoints.end(); inIter++)
+        acc += (Mi*(*inIter));
+    acc /= (pointCount * this->mPointMass);
+
+    /* Update Mesh coordinates; mInteriorPoints such the
+       mCOM is center of local frame of reference */
+    for (Vec3fIter v = mVertices.begin(); v != mVertices.end(); v++)
+        (*v) -= acc;
+    for (Vec3fIter in = mInteriorPoints.begin(); in != mInteriorPoints.end(); in++)
+        (*in) -= acc;
+    /* update face mNormals as well */
+    computeFaceNormals();
+
+    return acc;
+}
+
+ci::Matrix33f Mesh::computeInitialInertia()
+{
+    Matrix33f I(Matrix33f::zero());
+
+    for (Vec3fIter in = mInteriorPoints.begin(); in != mInteriorPoints.end(); in++) {
+        Vec3f ri = *in;
+        I.at(0, 0) += ri.y*ri.y + ri.z * ri.z;
+        I.at(0, 1) += -ri.x * ri.y;
+        I.at(0, 2) += -ri.x * ri.z;
+        I.at(1, 0) += -ri.y * ri.x;
+        I.at(1, 1) += ri.x*ri.x + ri.z * ri.z;
+        I.at(1, 2) += -ri.y * ri.z;
+        I.at(2, 0) += -ri.x * ri.z;
+        I.at(2, 1) += -ri.y * ri.z;
+        I.at(2, 2) += ri.x*ri.x + ri.y * ri.y;
+    }
+
+    for (Vec3fIter it = mVertices.begin(); it != mVertices.end(); it++) {
+        Vec3f ri = *it;
+        I.at(0, 0) += ri.y*ri.y + ri.z * ri.z;
+        I.at(0, 1) += -ri.x * ri.y;
+        I.at(0, 2) += -ri.x * ri.z;
+        I.at(1, 0) += -ri.y * ri.x;
+        I.at(1, 1) += ri.x*ri.x + ri.z * ri.z;
+        I.at(1, 2) += -ri.y * ri.z;
+        I.at(2, 0) += -ri.x * ri.z;
+        I.at(2, 1) += -ri.y * ri.z;
+        I.at(2, 2) += ri.x*ri.x + ri.y * ri.y;
+    }
+
+    Matrix33f massScale(Matrix33f::createScale(mPointMass));
+    I *= massScale;
+    return I;
+}
+
+void Mesh::computeInertia()
+{
+    mInitR = computeAABB();
+    generateInsiders();
+    mCOM = computeCOM();
+    mInitI = computeInitialInertia();
+    app::console() << "mCOM : " << mCOM << std::endl;
+    app::console() << "Inertia : " << std::endl << mInitI << std::endl;
+}
+
 bool Mesh::loadMesh(const char* filename, BODY_PART partType)
 {
-	this->part = partType;
+	this->mPartType = partType;
 	char type;
     string inputLine;
     ifstream ObjFile(filename,ios::in);
 
-    while(getline(ObjFile,inputLine))
-    {
+    while(getline(ObjFile,inputLine)) {
         stringstream ss(inputLine);
         ss>>type;
         switch(type) {
         case 'v': {
             float x,y,z; ss>>x>>y>>z;
-            myVertices.push_back(Vec3f(x,y,z));
+            mVertices.push_back(Vec3f(x,y,z));
         }
             break;
         case 'f': {
             unsigned int indices[3];
             ss>>indices[0]>>indices[1]>>indices[2];
 			indices[0]--; indices[1]--; indices[2]--;
-            faceIndices.push_back(Vec3ui(indices[0],indices[1],indices[2]));
+            mFaceIndices.push_back(Vec3ui(indices[0],indices[1],indices[2]));
         }
             break;
         case '#':		// Do nothing
@@ -44,53 +212,24 @@ bool Mesh::loadMesh(const char* filename, BODY_PART partType)
 	ObjFile.close();
 	computeFaceNormals();
 	computeInertia();
-	app::console()<<"AABB's dimensions : "<<(extents[1] - extents[0])<<std::endl;
+	app::console()<<"AABB's dimensions : "<<(mExtents[1] - mExtents[0])<<std::endl;
 	return true;
 }
 
-void Mesh::computeFaceNormals()
+std::vector<float> Mesh::findIntersection(const ci::Ray &ry)
 {
-	for( vector<Vec3ui>::iterator face = faceIndices.begin(); face != faceIndices.end(); face++ )
+    vector<float> ret_val;
+    for (unsigned int i = 0; i<mFaceIndices.size(); i++)
     {
-        Vec3ui indices = *face;
-        Vec3f norm = cross(myVertices[indices[1]]-myVertices[indices[0]], myVertices[indices[2]]-myVertices[indices[0]]);
-		norm.normalize();
-        faceNormals.push_back(norm);
+        float tmp = dot(mFaceNormals[i], ry.getDirection());
+        if (tmp > 1.0e-6 || tmp < -1.0e-6) {
+            float mCurrentTime = dot(mFaceNormals[i], mVertices[mFaceIndices[i].x] - ry.getOrigin()) / tmp;
+            Vec3f Ph = ry.getOrigin() + mCurrentTime*ry.getDirection();
+            if (insideTriangle(Ph, i))
+                ret_val.push_back(mCurrentTime);
+        }
     }
-}
-
-ci::Matrix33f Mesh::computeAABB()
-{
-	extents[0].set(10000.0f,10000.0f,10000.0f);
-	extents[1].set(-10000.0f,-10000.0f,-10000.0f);
-	for(Vec3fIter it = myVertices.begin(); it!= myVertices.end(); it++) {
-		Vec3f currV = *it;
-		// Min. extraction
-		extents[0][0] = ( currV[0] < extents[0][0] ? currV[0] : extents[0][0]);
-		extents[0][1] = ( currV[1] < extents[0][1] ? currV[1] : extents[0][1]);
-		extents[0][2] = ( currV[2] < extents[0][2] ? currV[2] : extents[0][2]);
-		// Max. extraction
-		extents[1][0] = ( currV[0] > extents[1][0] ? currV[0] : extents[1][0]);
-		extents[1][1] = ( currV[1] > extents[1][1] ? currV[1] : extents[1][1]);
-		extents[1][2] = ( currV[2] > extents[1][2] ? currV[2] : extents[1][2]);
-	}
-	extents[0] -= Vec3f(EPSILON,EPSILON,EPSILON);
-	extents[1] += Vec3f(EPSILON,EPSILON,EPSILON);
-	corners[0] = extents[0];
-	corners[1].set(extents[1][0],extents[0][1],extents[0][2]);
-	corners[2].set(extents[1][0],extents[1][1],extents[0][2]);
-	corners[3].set(extents[0][0],extents[1][1],extents[0][2]);
-	corners[4].set(extents[0][0],extents[1][1],extents[1][2]);
-	corners[5].set(extents[0][0],extents[0][1],extents[1][2]);
-	corners[6].set(extents[1][0],extents[0][1],extents[1][2]);
-	corners[7] = extents[1];
-	Vec3f X = (corners[1]-corners[0]).normalized();
-	X.normalize();
-	Vec3f Y = (corners[3]-corners[0]).normalized();
-	Y.normalize();
-	Vec3f Z = (corners[5]-corners[0]).normalized();
-	Z.normalize();
-	return Matrix33f(X,Y,Z);
+    return ret_val;
 }
 
 bool Mesh::insideTriangle(const Vec3f &Ph, unsigned int index)
@@ -99,10 +238,10 @@ bool Mesh::insideTriangle(const Vec3f &Ph, unsigned int index)
     float mu,mv;
     float ut,vt,wt;
 
-    Vec3f A = cross( myVertices[faceIndices[index].y]-myVertices[faceIndices[index].x],
-					 myVertices[faceIndices[index].z]-myVertices[faceIndices[index].x] );
-	Vec3f A1 = cross( myVertices[faceIndices[index].y]-Ph, myVertices[faceIndices[index].z]-Ph );
-	Vec3f A2 = cross( myVertices[faceIndices[index].z]-Ph, myVertices[faceIndices[index].x]-Ph );
+    Vec3f A = cross( mVertices[mFaceIndices[index].y]-mVertices[mFaceIndices[index].x],
+					 mVertices[mFaceIndices[index].z]-mVertices[mFaceIndices[index].x] );
+	Vec3f A1 = cross( mVertices[mFaceIndices[index].y]-Ph, mVertices[mFaceIndices[index].z]-Ph );
+	Vec3f A2 = cross( mVertices[mFaceIndices[index].z]-Ph, mVertices[mFaceIndices[index].x]-Ph );
 
     /* u computation */
     a = (A1.x < 0.0f) ? A1.x*-1.0f : A1.x;
@@ -132,139 +271,41 @@ bool Mesh::insideTriangle(const Vec3f &Ph, unsigned int index)
 		return false;
 }
 
-std::vector<float> Mesh::findIntersection(const ci::Ray &ry)
+const int Mesh::getNumTriangles() const
 {
-	vector<float> ret_val;
-    for(unsigned int i=0; i<faceIndices.size(); i++)
-    {
-		float tmp = dot(faceNormals[i],ry.getDirection());
-		if( tmp > 1.0e-6 || tmp < -1.0e-6 ) {
-			float t = dot(faceNormals[i], myVertices[faceIndices[i].x]-ry.getOrigin()) / tmp;
-			Vec3f Ph = ry.getOrigin() + t*ry.getDirection();
-			if( insideTriangle( Ph, i) )
-				ret_val.push_back(t);
-		}
-    }
-    return ret_val;
+    return mFaceIndices.size();
+}
+const std::vector<Vec3ui>& Mesh::getIndices() const
+{
+    return mFaceIndices;
 }
 
-void Mesh::generateInsiders()
+const std::vector<ci::Vec3f>& Mesh::getVertices() const
 {
-	Vec3f X = initR.getColumn(0);
-	Vec3f Y = initR.getColumn(1);
-	Vec3f Z = initR.getColumn(2);
-	float xLen = (corners[1]-corners[0]).length();
-	float yLen = (corners[3]-corners[0]).length();
-	float zLen = (corners[5]-corners[0]).length();
-	int xGrids = ( xLen/2.0f > 1.0f ? (int)(xLen/2.0) : 4);
-	int yGrids = ( yLen/2.0f > 1.0f ? (int)(yLen/2.0) : 4);
-	int zGrids = ( zLen/2.0f > 1.0f ? (int)(zLen/2.0) : 4);
-	float xStep = xLen/xGrids;
-	float yStep = yLen/yGrids;
-	float zStep = zLen/zGrids;
-
-	for( int j=1; j<=yGrids; j++ )
-	{
-		for( int k=1; k<=zGrids; k++ )
-		{
-			Vec3f src = corners[0] + j*yStep*Y + k*zStep*Z;
-			Ray currRay(src,X);
-			vector<float> tS = this->findIntersection(currRay);
-			for( vector<float>::iterator tf = tS.begin(); tf != tS.end(); tf=tf+2 ) {
-				float t = *tf;
-				if( tf+1 != tS.end() ) {
-					float tNxt = *(tf+1);
-					Vec3f Pt = currRay.getOrigin() + t * currRay.getDirection() - corners[0];
-					Vec3f PtNxt = currRay.getOrigin() + tNxt * currRay.getDirection() - corners[0];
-					int txInd = (int)(Pt.x/xStep);
-					int txNxtInd = (int)(PtNxt.x/xStep);
-					if( txInd < txNxtInd ) {
-						for( int i = txInd+1; i<=txNxtInd; i++ )
-							insiders.push_back(src+i*xStep*X);
-					} else {
-						for( int i = txNxtInd+1; i<=txInd; i++ )
-							insiders.push_back(src+i*xStep*X);
-					}
-				} else
-					break;
-			}
-		}
-	}
+    return mVertices;
 }
 
-ci::Vec3f Mesh::computeCOM()
+const std::vector<ci::Vec3f>& Mesh::getNormals() const
 {
-	int pointCount = myVertices.size() + insiders.size();
-	float Mi;
-	if( this->part == BODY_PART::BODY ) {
-		this->pointMass = BODY_WT;
-		this->pointMass /= (float)pointCount;
-	}
-	if( this->part == BODY_PART::WING ) {
-		this->pointMass = WING_WT;
-		this->pointMass /= (float)pointCount;
-	}
-	Matrix33f I(Matrix33f::zero());
-
-	Mi = this->pointMass;
-	Vec3f acc(Vec3f::zero());
-	for( Vec3fIter iter = myVertices.begin(); iter != myVertices.end(); iter++ )
-		acc += (Mi*(*iter));
-	for( Vec3fIter inIter = insiders.begin(); inIter != insiders.end(); inIter++ )
-		acc += (Mi*(*inIter));
-	acc /= (pointCount * this->pointMass);
-
-	// Update Mesh coordinates; insiders such the COM is center of local frame of reference
-	for( Vec3fIter v = myVertices.begin(); v != myVertices.end(); v++ )
-		(*v) -= acc;
-	for( Vec3fIter in = insiders.begin(); in != insiders.end(); in++ )
-		(*in) -= acc;
-	// update face normals as well
-	computeFaceNormals();
-
-	return acc;
+    return mFaceNormals;
 }
 
-ci::Matrix33f Mesh::computeInitialInertia()
+const ci::Vec3f& Mesh::extent(const unsigned index) const
 {
-	Matrix33f I(Matrix33f::zero());
-	for( Vec3fIter in = insiders.begin(); in != insiders.end(); in++ )
-	{
-		Vec3f ri = *in;
-		I.at(0,0) += ri.y*ri.y + ri.z * ri.z;
-		I.at(0,1) += -ri.x * ri.y;
-		I.at(0,2) += -ri.x * ri.z;
-		I.at(1,0) += -ri.y * ri.x;
-		I.at(1,1) += ri.x*ri.x + ri.z * ri.z;
-		I.at(1,2) += -ri.y * ri.z;
-		I.at(2,0) += -ri.x * ri.z;
-		I.at(2,1) += -ri.y * ri.z;
-		I.at(2,2) += ri.x*ri.x + ri.y * ri.y;
-	}
-	for( Vec3fIter it = myVertices.begin(); it != myVertices.end(); it++ )
-	{
-		Vec3f ri = *it;
-		I.at(0,0) += ri.y*ri.y + ri.z * ri.z;
-		I.at(0,1) += -ri.x * ri.y;
-		I.at(0,2) += -ri.x * ri.z;
-		I.at(1,0) += -ri.y * ri.x;
-		I.at(1,1) += ri.x*ri.x + ri.z * ri.z;
-		I.at(1,2) += -ri.y * ri.z;
-		I.at(2,0) += -ri.x * ri.z;
-		I.at(2,1) += -ri.y * ri.z;
-		I.at(2,2) += ri.x*ri.x + ri.y * ri.y;
-	}
-	Matrix33f massScale(Matrix33f::createScale(pointMass));
-	I*=massScale;
-	return I;
+    return mExtents[index];
 }
 
-void Mesh::computeInertia()
-{	
-	initR = computeAABB();
-	generateInsiders();
-	COM = computeCOM();
-	mInitI = computeInitialInertia();
-	app::console()<<"COM : "<<COM<<std::endl;
-	app::console()<<"Inertia : "<<std::endl<<mInitI<<std::endl;
+const BODY_PART& Mesh::bodyPart() const
+{
+    return mPartType;
+}
+
+const ci::Vec3f& Mesh::COM() const
+{
+    return mCOM;
+}
+
+const ci::Matrix33f& Mesh::initialInteria() const
+{
+    return mInitI;
 }

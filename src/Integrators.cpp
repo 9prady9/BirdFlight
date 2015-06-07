@@ -4,9 +4,21 @@
 
 using namespace ci;
 
+Derivative evaluate(Bird *boid, const State &oldState, float dTime, const Derivative &dFunc)
+{
+    State state = oldState;
+    state.mCOM = oldState.mCOM + dFunc.V*dTime;
+    state.mR = oldState.mR + dFunc.dOmegaR*dTime;
+    state.mP = oldState.mP + dFunc.force*dTime;
+    state.mL = oldState.mL + dFunc.torque*dTime;
+    state.mI = state.mR * oldState.mInitI * state.mR.transposed();
+    state.mInvI = state.mR * oldState.mInitInvI * state.mR.transposed();
+    return boid->accelerate(state);
+}
+
 void integrateByEulerMethod(Bird *boid, State &state, float dTime, const Derivative &dFunc)
 {
-	State st = boid->mState;
+	State st = boid->getState();
 	state.mCOM = st.mCOM + dFunc.V*dTime;
 	state.mR = st.mR + dFunc.dOmegaR*dTime;
 	state.mP = st.mP + dFunc.force*dTime;
@@ -15,21 +27,9 @@ void integrateByEulerMethod(Bird *boid, State &state, float dTime, const Derivat
 	state.mInvI = state.mR * st.mInitInvI * state.mR.transposed();
 }
 
-Derivative evaluate(Bird *boid, const State &oldState, float dTime, const Derivative &dFunc)
-{
-    State state = oldState;
-	state.mCOM = oldState.mCOM + dFunc.V*dTime;
-	state.mR = oldState.mR + dFunc.dOmegaR*dTime;
-	state.mP = oldState.mP + dFunc.force*dTime;
-	state.mL = oldState.mL + dFunc.torque*dTime;	
-	state.mI = state.mR * oldState.mInitI * state.mR.transposed();
-	state.mInvI = state.mR * oldState.mInitInvI * state.mR.transposed();
-	return boid->accelerate(state);
-}
-
 void integrateByRungeKutta4(Bird *boid, State &state, float dTime, const Derivative &dFunc)
 {
-	State st = boid->mState;
+    State st = boid->getState();
 	Derivative a = evaluate(boid, st, dTime*0.0f, dFunc);
 	Derivative b = evaluate(boid, st, dTime*0.5f, a);
 	Derivative c = evaluate(boid, st, dTime*0.5f, b);

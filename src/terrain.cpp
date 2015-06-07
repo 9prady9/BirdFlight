@@ -7,212 +7,219 @@
 
 using namespace ci;
 
-Terrain::Terrain(int Z, int X, float minHeight, float maxHeight, float roughness, float smoothy)
+
+void Terrain::DiaSqrHelper(int x1_idx, int x2_idx, int z1_idx, int z2_idx, int iteration, int Threshold)
 {
-	len = Z;
-	wid = X;
-	minH = minHeight;
-	maxH = maxHeight;
-	invHDiff = 1/(maxH-minH);
-	rough = roughness;
-	smth = smoothy;
-	points = new Vec3f*[wid];
-	colors = new ColorA*[wid];
-	normals = new Vec3f*[wid];
-	for(int i=0; i<wid; i++) {
-		points[i] = new Vec3f[len];
-		colors[i] = new ColorA[len];
-		normals[i] = new Vec3f[len];
-	}
-	Rand::randomize();	// resets the static random generator seed
+    if (iteration < Threshold)
+    {
+        /* left to right - X axis; top to bottom - Z axis */
+        // Get Corner mPoints
+        Vec3f leftTop = mPoints[x1_idx][z1_idx];
+        Vec3f leftBottom = mPoints[x1_idx][z2_idx];
+        Vec3f rightBottom = mPoints[x2_idx][z2_idx];
+        Vec3f rightTop = mPoints[x2_idx][z1_idx];
+        // find mid point indices
+        int mid_x_idx = (x1_idx + x2_idx) / 2;
+        int mid_z_idx = (z1_idx + z2_idx) / 2;
+        // assign new height to mid point
+        mPoints[mid_x_idx][mid_z_idx].y = ((leftTop.y + leftBottom.y + rightBottom.y + rightTop.y) / 4) + Rand::randFloat(mMinHeight, mMaxHeight);
+        // assign new heights to mid mPoints of sides of square
+        if (z1_idx>0) {
+            mPoints[mid_x_idx][z1_idx].y = ((leftTop.y + mPoints[mid_x_idx][mid_z_idx].y +
+                rightTop.y + mPoints[mid_x_idx][z1_idx - 1].y) / 4) + Rand::randFloat(mMinHeight, mMaxHeight);
+        }
+        else {
+            mPoints[mid_x_idx][z1_idx].y = ((leftTop.y + mPoints[mid_x_idx][mid_z_idx].y + rightTop.y) / 3) + Rand::randFloat(mMinHeight, mMaxHeight);
+        }
+        if (z2_idx < mTerrainLength - 1) {
+            mPoints[mid_x_idx][z2_idx].y = ((leftBottom.y + mPoints[mid_x_idx][mid_z_idx].y +
+                rightBottom.y + mPoints[mid_x_idx][z2_idx + 1].y) / 4) + Rand::randFloat(mMinHeight, mMaxHeight);
+        }
+        else {
+            mPoints[mid_x_idx][z2_idx].y = ((leftBottom.y + mPoints[mid_x_idx][mid_z_idx].y + rightBottom.y) / 3) + Rand::randFloat(mMinHeight, mMaxHeight);
+        }
+        if (x1_idx>0) {
+            mPoints[x1_idx][mid_z_idx].y = ((leftTop.y + mPoints[mid_x_idx][mid_z_idx].y +
+                leftBottom.y + mPoints[x1_idx - 1][mid_z_idx].y) / 4) + Rand::randFloat(mMinHeight, mMaxHeight);
+        }
+        else {
+            mPoints[x1_idx][mid_z_idx].y = ((leftTop.y + mPoints[mid_x_idx][mid_z_idx].y + leftBottom.y) / 3) + Rand::randFloat(mMinHeight, mMaxHeight);
+        }
+        if (x2_idx<mTerrainWidth - 1) {
+            mPoints[x2_idx][mid_z_idx].y = ((rightTop.y + mPoints[mid_x_idx][mid_z_idx].y +
+                rightBottom.y + mPoints[x2_idx + 1][mid_z_idx].y) / 4) + Rand::randFloat(mMinHeight, mMaxHeight);
+        }
+        else {
+            mPoints[x2_idx][mid_z_idx].y = ((rightTop.y + mPoints[mid_x_idx][mid_z_idx].y + rightBottom.y) / 3) + Rand::randFloat(mMinHeight, mMaxHeight);
+        }
+        iteration++;
+        if (iteration < Threshold) {
+            mMinHeight *= pow(2.0f, -mRoughFactor);
+            mMaxHeight *= pow(2.0f, -mRoughFactor);
+            DiaSqrHelper(x1_idx, mid_x_idx, z1_idx, mid_z_idx, iteration, Threshold);
+            DiaSqrHelper(mid_x_idx, x2_idx, z1_idx, mid_z_idx, iteration, Threshold);
+            DiaSqrHelper(x1_idx, mid_x_idx, mid_z_idx, z2_idx, iteration, Threshold);
+            DiaSqrHelper(mid_x_idx, x2_idx, mid_z_idx, z2_idx, iteration, Threshold);
+        }
+    }
 }
 
-void Terrain::loadTerrain(const char *heightmap,const char* colormap)
+void Terrain::iterateByDiamondSquare(int nums)
+{
+    DiaSqrHelper(0, mTerrainWidth - 1, 0, mTerrainLength - 1, 0, nums);
+}
+
+void Terrain::applySmoothingFilter()
+{
+    /* Rows, left to right */
+    for (int x = 1; x < mTerrainWidth; x++)
+        for (int z = 0; z < mTerrainLength; z++)
+            mPoints[x][z].y = mPoints[x - 1][z].y * (1 - mSmoothFactor) + mPoints[x][z].y * mSmoothFactor;
+
+    /* Rows, right to left*/
+    for (int x = mTerrainWidth - 2; x < -1; x--)
+        for (int z = 0; z < mTerrainLength; z++)
+            mPoints[x][z].y = mPoints[x + 1][z].y * (1 - mSmoothFactor) + mPoints[x][z].y * mSmoothFactor;
+
+    /* Columns, bottom to top */
+    for (int x = 0; x < mTerrainWidth; x++)
+        for (int z = 1; z < mTerrainLength; z++)
+            mPoints[x][z].y = mPoints[x][z - 1].y * (1 - mSmoothFactor) + mPoints[x][z].y * mSmoothFactor;
+
+    /* Columns, top to bottom */
+    for (int x = 0; x < mTerrainWidth; x++)
+        for (int z = mTerrainLength; z < -1; z--)
+            mPoints[x][z].y = mPoints[x][z + 1].y * (1 - mSmoothFactor) + mPoints[x][z].y * mSmoothFactor;
+}
+
+void Terrain::computeNormals()
+{
+    int widThreshold = mTerrainWidth - 1;
+    int lenThreshold = mTerrainLength - 1;
+
+    Vec3f n1, n2, n3, n4, n5, n6, n7, n8;
+    n1 = n2 = n3 = n4 = n5 = n6 = n7 = n8 = Vec3f::zero();
+
+    for (int i = 0; i<mTerrainWidth; i++) {
+        for (int k = 0; k<mTerrainLength; k++) {
+            if (k>0 && i>0)
+                n1 = cross(mPoints[i - 1][k] - mPoints[i][k], mPoints[i - 1][k - 1] - mPoints[i][k]);
+            if (k>0 && i>0)
+                n2 = cross(mPoints[i - 1][k - 1] - mPoints[i][k], mPoints[i][k - 1] - mPoints[i][k]);
+            if (k>0 && i<widThreshold)
+                n3 = cross(mPoints[i][k - 1] - mPoints[i][k], mPoints[i + 1][k - 1] - mPoints[i][k]);
+            if (k>0 && i<widThreshold)
+                n4 = cross(mPoints[i + 1][k - 1] - mPoints[i][k], mPoints[i + 1][k] - mPoints[i][k]);
+            if (k<lenThreshold && i<widThreshold)
+                n5 = cross(mPoints[i + 1][k] - mPoints[i][k], mPoints[i + 1][k + 1] - mPoints[i][k]);
+            if (k<lenThreshold && i<widThreshold)
+                n6 = cross(mPoints[i + 1][k + 1] - mPoints[i][k], mPoints[i][k + 1] - mPoints[i][k]);
+            if (k<lenThreshold && i>0)
+                n7 = cross(mPoints[i][k + 1] - mPoints[i][k], mPoints[i - 1][k + 1] - mPoints[i][k]);
+            if (k<lenThreshold && i>0)
+                n8 = cross(mPoints[i - 1][k + 1] - mPoints[i][k], mPoints[i - 1][k] - mPoints[i][k]);
+
+            mNormals[i][k] = (n1 + n2 + n3 + n4 + n5 + n6 + n7 + n8).normalized();
+        }
+    }
+}
+
+Terrain::Terrain(int Z, int X, float minHeight, float maxHeight, float roughness, float smoothy)
+{
+	mTerrainLength  = Z;
+	mTerrainWidth   = X;
+	mMinHeight      = minHeight;
+	mMaxHeight      = maxHeight;
+	mHeightDiffInvVal = 1/(mMaxHeight-mMinHeight);
+	mRoughFactor    = roughness;
+	mSmoothFactor   = smoothy;
+
+	mPoints     = new Vec3f*[mTerrainWidth];
+	mColors     = new ColorA*[mTerrainWidth];
+	mNormals    = new Vec3f*[mTerrainWidth];
+
+	for(int i=0; i<mTerrainWidth; i++) {
+		mPoints[i] = new Vec3f[mTerrainLength];
+		mColors[i] = new ColorA[mTerrainLength];
+		mNormals[i] = new Vec3f[mTerrainLength];
+	}
+    /* reset the static random generator seed */
+    Rand::randomize();
+}
+
+void Terrain::prepareTerrain(const char *heightmap, const char* colormap)
 {
 	const Surface8u heightXZ( loadImage( loadFile( heightmap ) ) );
 	const Surface8u colorXZ( loadImage( loadFile( colormap ) ) );
-	// Assuming alpha channel availability
-	for(int i=0; i<wid; i++)
-	{
-		for(int k=0; k<len; k++)
-		{
-			points[i][k].x = -wid/2.0f + 2.0f*i;
-			points[i][k].y = (*heightXZ.getDataRed(Vec2i(i,k)))-200.0f;
-			points[i][k].z = -len/2.0f + 2.0f*k;
-			colors[i][k] = colorXZ.getPixel(Vec2i(i,k));
+	/* Assuming alpha channel availability */
+	for(int i=0; i<mTerrainWidth; i++) {
+		for(int k=0; k<mTerrainLength; k++) {
+			mPoints[i][k].x = -mTerrainWidth/2.0f + 2.0f*i;
+			mPoints[i][k].y = (*heightXZ.getDataRed(Vec2i(i,k)))-200.0f;
+			mPoints[i][k].z = -mTerrainLength/2.0f + 2.0f*k;
+			mColors[i][k] = colorXZ.getPixel(Vec2i(i,k));
 		}
 	}
-	// smooth the generated terrain
-	for(int i=0;i<9;++i) applySmoothingFilter();
+	/* smooth the generated terrain */
+	for(int i=0;i<7;++i)
+        applySmoothingFilter();
 	computeNormals();
 }
 
 void Terrain::prepareTerrain()
 {
-	int mid_i = wid/2;
-	int mid_k = len/2;
-	for(int i=0; i<wid; i++)
-	{
-		for(int k=0; k<len; k++)
-		{
-			points[i][k].x = -wid/2.0f + 3.0f*i;
-			points[i][k].y = Rand::randFloat(minH,maxH);
-			points[i][k].z = -len/2.0f + 3.0f*k;
-			colors[i][k]   = getColor(points[i][k].y);
+	int mid_i = mTerrainWidth/2;
+	int mid_k = mTerrainLength/2;
+	for(int i=0; i<mTerrainWidth; i++) {
+		for(int k=0; k<mTerrainLength; k++) {
+			mPoints[i][k].x = -mTerrainWidth/2.0f + 3.0f*i;
+			mPoints[i][k].y = Rand::randFloat(mMinHeight,mMaxHeight);
+			mPoints[i][k].z = -mTerrainLength/2.0f + 3.0f*k;
+			mColors[i][k]   = getColor(mPoints[i][k].y);
 		}
 	}
-	// run iterations to generate a finer mesh points
+	/* run iterations to generate a finer mesh mPoints */
 	iterateByDiamondSquare(9);
-	// smooth the generated terrain
-	for(int i=0;i<9;++i) applySmoothingFilter();
+	/* smooth the generated terrain */
+	for(int i=0;i<9;++i)
+        applySmoothingFilter();
 	computeNormals();
-}
-
-void Terrain::computeNormals()
-{
-	int widThreshold = wid-1;
-	int lenThreshold = len-1;
-	Vec3f n1,n2,n3,n4,n5,n6,n7,n8;
-	n1 = n2 = n3 = n4 = n5 = n6 = n7 = n8 = Vec3f::zero();
-	for(int i=0; i<wid; i++)
-	{
-		for(int k=0; k<len; k++)
-		{
-			if(k>0 && i>0)
-				n1 = cross(points[i-1][k] - points[i][k], points[i-1][k-1] - points[i][k]);
-			if(k>0 && i>0)
-				n2 = cross(points[i-1][k-1] - points[i][k], points[i][k-1] - points[i][k]);
-			if(k>0 && i<widThreshold)
-				n3 = cross(points[i][k-1] - points[i][k], points[i+1][k-1] - points[i][k]);
-			if(k>0 && i<widThreshold)
-				n4 = cross(points[i+1][k-1] - points[i][k], points[i+1][k] - points[i][k]);
-			if(k<lenThreshold && i<widThreshold)
-				n5 = cross(points[i+1][k] - points[i][k], points[i+1][k+1] - points[i][k]);
-			if(k<lenThreshold && i<widThreshold)
-				n6 = cross(points[i+1][k+1] - points[i][k], points[i][k+1] - points[i][k]);
-			if(k<lenThreshold && i>0)
-				n7 = cross(points[i][k+1] - points[i][k], points[i-1][k+1] - points[i][k]);
-			if(k<lenThreshold && i>0)
-				n8 = cross(points[i-1][k+1] - points[i][k], points[i-1][k] - points[i][k]);
-
-			normals[i][k] = (n1+n2+n3+n4+n5+n6+n7+n8).normalized();
-		}
-	}
 }
 
 void Terrain::renderTerrain(bool lighting)
 {
-	int widThreshold = wid-1;
-	int lenThreshold = len-1;
-	if(lighting) {
-		glEnable(GL_COLOR_MATERIAL);
-		for(int i=0; i<widThreshold; i++)
-		{
-			glBegin(GL_TRIANGLE_STRIP);
-			for(int k=0; k<lenThreshold; k++)
-			{
-				glColor3f(colors[i][k].r,colors[i][k].g,colors[i][k].b);
-				glNormal3f(normals[i][k].x,normals[i][k].y,normals[i][k].z);
-				glVertex3f(points[i][k].x,points[i][k].y,points[i][k].z);
-				glColor3f(colors[i+1][k].r,colors[i+1][k].g,colors[i+1][k].b);
-				glNormal3f(normals[i+1][k].x,normals[i+1][k].y,normals[i+1][k].z);
-				glVertex3f(points[i+1][k].x,points[i+1][k].y,points[i+1][k].z);
-			}
-			glEnd();
-		}
-		glDisable(GL_COLOR_MATERIAL);
-	} else {
-		for(int i=0; i<widThreshold; i++)
-		{
-			glBegin(GL_TRIANGLE_STRIP);
-			for(int k=0; k<lenThreshold; k++)
-			{
-				glColor3f(colors[i][k].r,colors[i][k].g,colors[i][k].b);
-				glVertex3f(points[i][k].x,points[i][k].y,points[i][k].z);
-				glColor3f(colors[i+1][k].r,colors[i+1][k].g,colors[i+1][k].b);
-				glVertex3f(points[i+1][k].x,points[i+1][k].y,points[i+1][k].z);
-			}
-			glEnd();
-		}
-	}
-}
-
-void Terrain::iterateByDiamondSquare(int nums)
-{
-	DiaSqrHelper(0,wid-1,0,len-1,0,nums);
-}
-
-void Terrain::DiaSqrHelper(int x1_idx, int x2_idx, int z1_idx, int z2_idx, int iteration, int Threshold)
-{
-	if( iteration < Threshold )
-	{
-		/* left to right - X axis; top to bottom - Z axis */
-		// Get Corner points
-		Vec3f leftTop		= points[x1_idx][z1_idx];
-		Vec3f leftBottom	= points[x1_idx][z2_idx];
-		Vec3f rightBottom	= points[x2_idx][z2_idx];
-		Vec3f rightTop		= points[x2_idx][z1_idx];
-		// find mid point indices
-		int mid_x_idx = (x1_idx + x2_idx)/2;
-		int mid_z_idx = (z1_idx + z2_idx)/2;
-		// assign new height to mid point
-		points[mid_x_idx][mid_z_idx].y = ((leftTop.y + leftBottom.y + rightBottom.y + rightTop.y)/4) + Rand::randFloat(minH,maxH);
-		// assign new heights to mid points of sides of square
-		if( z1_idx>0 ) {
-			points[mid_x_idx][z1_idx].y = ((leftTop.y + points[mid_x_idx][mid_z_idx].y + 
-											rightTop.y + points[mid_x_idx][z1_idx-1].y)/4) + Rand::randFloat(minH,maxH);
-		} else {
-			points[mid_x_idx][z1_idx].y = ((leftTop.y + points[mid_x_idx][mid_z_idx].y + rightTop.y)/3) + Rand::randFloat(minH,maxH);
-		}
-		if( z2_idx < len-1 ) {
-			points[mid_x_idx][z2_idx].y = ((leftBottom.y + points[mid_x_idx][mid_z_idx].y + 
-											rightBottom.y + points[mid_x_idx][z2_idx+1].y)/4) + Rand::randFloat(minH,maxH);
-		} else {
-			points[mid_x_idx][z2_idx].y = ((leftBottom.y + points[mid_x_idx][mid_z_idx].y + rightBottom.y)/3) + Rand::randFloat(minH,maxH);
-		}
-		if( x1_idx>0 ) {
-			points[x1_idx][mid_z_idx].y = ((leftTop.y + points[mid_x_idx][mid_z_idx].y + 
-											leftBottom.y + points[x1_idx-1][mid_z_idx].y)/4) + Rand::randFloat(minH,maxH);
-		} else {
-			points[x1_idx][mid_z_idx].y = ((leftTop.y + points[mid_x_idx][mid_z_idx].y + leftBottom.y)/3) + Rand::randFloat(minH,maxH);
-		}
-		if( x2_idx<wid-1 ) {
-			points[x2_idx][mid_z_idx].y = ((rightTop.y + points[mid_x_idx][mid_z_idx].y + 
-											rightBottom.y + points[x2_idx+1][mid_z_idx].y)/4) + Rand::randFloat(minH,maxH);
-		} else {
-			points[x2_idx][mid_z_idx].y = ((rightTop.y + points[mid_x_idx][mid_z_idx].y + rightBottom.y)/3) + Rand::randFloat(minH,maxH);
-		}
-		iteration++;
-		if( iteration < Threshold ) {
-			minH *= pow(2,-rough);
-			maxH *= pow(2,-rough);
-			DiaSqrHelper(x1_idx,mid_x_idx,z1_idx,mid_z_idx,iteration,Threshold);
-			DiaSqrHelper(mid_x_idx,x2_idx,z1_idx,mid_z_idx,iteration,Threshold);
-			DiaSqrHelper(x1_idx,mid_x_idx,mid_z_idx,z2_idx,iteration,Threshold);
-			DiaSqrHelper(mid_x_idx,x2_idx,mid_z_idx,z2_idx,iteration,Threshold);
-		}
-	}
-}
-
-void Terrain::applySmoothingFilter()
-{
-	/* Rows, left to right */
-	for(int x = 1;x < wid; x++)
-	    for (int z = 0;z < len; z++)
-			points[x][z].y = points[x-1][z].y * (1-smth) + points[x][z].y * smth;
-
-	/* Rows, right to left*/
-	for(int x = wid-2;x < -1; x--)
-	    for (int z = 0;z < len; z++)
-		points[x][z].y = points[x+1][z].y * (1-smth) + points[x][z].y * smth;
-
-	/* Columns, bottom to top */
-	for(int x = 0;x < wid; x++)
-	    for (int z = 1;z < len; z++)
-		points[x][z].y = points[x][z-1].y * (1-smth) + points[x][z].y * smth;
-
-	/* Columns, top to bottom */
-	for(int x = 0;x < wid; x++)
-	    for (int z = len; z < -1; z--)
-		points[x][z].y = points[x][z+1].y * (1-smth) + points[x][z].y * smth;
+    int widThreshold = mTerrainWidth - 1;
+    int lenThreshold = mTerrainLength - 1;
+    if (lighting) {
+        glEnable(GL_COLOR_MATERIAL);
+        for (int i = 0; i<widThreshold; i++)
+        {
+            glBegin(GL_TRIANGLE_STRIP);
+            for (int k = 0; k<lenThreshold; k++)
+            {
+                glColor3f(mColors[i][k].r, mColors[i][k].g, mColors[i][k].b);
+                glNormal3f(mNormals[i][k].x, mNormals[i][k].y, mNormals[i][k].z);
+                glVertex3f(mPoints[i][k].x, mPoints[i][k].y, mPoints[i][k].z);
+                glColor3f(mColors[i + 1][k].r, mColors[i + 1][k].g, mColors[i + 1][k].b);
+                glNormal3f(mNormals[i + 1][k].x, mNormals[i + 1][k].y, mNormals[i + 1][k].z);
+                glVertex3f(mPoints[i + 1][k].x, mPoints[i + 1][k].y, mPoints[i + 1][k].z);
+            }
+            glEnd();
+        }
+        glDisable(GL_COLOR_MATERIAL);
+    }
+    else {
+        for (int i = 0; i<widThreshold; i++)
+        {
+            glBegin(GL_TRIANGLE_STRIP);
+            for (int k = 0; k<lenThreshold; k++)
+            {
+                glColor3f(mColors[i][k].r, mColors[i][k].g, mColors[i][k].b);
+                glVertex3f(mPoints[i][k].x, mPoints[i][k].y, mPoints[i][k].z);
+                glColor3f(mColors[i + 1][k].r, mColors[i + 1][k].g, mColors[i + 1][k].b);
+                glVertex3f(mPoints[i + 1][k].x, mPoints[i + 1][k].y, mPoints[i + 1][k].z);
+            }
+            glEnd();
+        }
+    }
 }

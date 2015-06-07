@@ -5,44 +5,73 @@
 #include "cinder\Ray.h"
 #include <vector>
 
-// Weight in Kilograms
+/* Weight in Kilograms */
 const int WING_WT = 1;
 const int BODY_WT = 2;
 
 typedef ci::Vec3<unsigned int> Vec3ui;
+
 enum BODY_PART { BODY, WING };
 
-class Mesh{
+class Mesh {
+private:
+    /* Attributes */
+    ci::Vec3f               mCOM;
+    ci::Matrix33f           mInitI;
+    std::vector<ci::Vec3f>  mVertices;
+    std::vector<Vec3ui>     mFaceIndices;
+    std::vector<ci::Vec3f>  mFaceNormals;
+    
+    /* AABB (Axis Aligned Bounding Box) attributes */
+    ci::Vec3f               mExtents[2];
+    ci::Vec3f               mCorners[8];
+
+    /* Volume mPoints */
+    BODY_PART               mPartType;
+    float                   mPointMass;
+    ci::Matrix33f           mInitR;
+    std::vector<ci::Vec3f>  mInteriorPoints;
+
+    /* 
+     * Mesh Class Helper Member Functions 
+     */
+    /* Below helper is used to compute mesh face mNormals */
+    void computeFaceNormals();
+
+    /* Below helper is used to compute mesh's 
+       Axis Aligned Bounding Box */
+    ci::Matrix33f computeAABB();
+
+    void generateInsiders();
+
+    /* Below helper is used by computerInertia compute
+       the object's Center of Mass */
+    ci::Vec3f computeCOM();
+
+    /* Below helper is used by computeInertia function
+      to compute the object's intial moment of inertia */
+    ci::Matrix33f computeInitialInertia();
+
+    /* Below helper is used by loadMesh */
+    void computeInertia();
+
+    /* Below helper is used to findIntersection if given
+    face(index) contains the point Ph */
+    bool insideTriangle(const ci::Vec3f &Ph, unsigned int index);
+
 public:
 	bool loadMesh(const char* filename, BODY_PART partType);
-	void computeFaceNormals();
-	ci::Matrix33f computeAABB();
-	bool insideTriangle(const ci::Vec3f &Ph, unsigned int index);
 	std::vector<float> findIntersection(const ci::Ray &ry);
-	void generateInsiders();
-	ci::Vec3f computeCOM();
-	ci::Matrix33f computeInitialInertia();
-	void computeInertia();
 
-	const int getNumTriangles() const { return faceIndices.size(); }
-	const std::vector<Vec3ui>& getIndices() const { return faceIndices; } 
-	const std::vector<ci::Vec3f>& getVertices() const { return myVertices; }
-	const std::vector<ci::Vec3f>& getNormals() const { return faceNormals; }
+    const int getNumTriangles() const;
+    const std::vector<Vec3ui>& getIndices() const;
+    const std::vector<ci::Vec3f>& getVertices() const;
+    const std::vector<ci::Vec3f>& getNormals() const;
+    const ci::Vec3f& extent(const unsigned index) const;
+    const BODY_PART& bodyPart() const;
+    const ci::Vec3f& COM() const;
+    const ci::Matrix33f& initialInteria() const;
 
-	// Attributes
-	ci::Vec3f COM;
-	ci::Matrix33f mInitI;
-	std::vector<ci::Vec3f> myVertices;
-    std::vector<Vec3ui> faceIndices;
-    std::vector<ci::Vec3f> faceNormals;
-	// AABB attributes
-	ci::Vec3f extents[2];
-	ci::Vec3f corners[8];
-	// Volume points
-	BODY_PART part;
-	float pointMass;
-	ci::Matrix33f initR;
-	std::vector<ci::Vec3f> insiders;
 };
 
 typedef std::vector<ci::Vec3f>::iterator Vec3fIter;
